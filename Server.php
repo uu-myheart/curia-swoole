@@ -14,14 +14,14 @@ use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 class Server
 {
 	/**
-     * Laravel app 实例(全局)
+     * Laravel app instance(global)
      *
      * @var \Illuminate\Foundation\Application
      */
     protected $laravel;
 
     /**
-     * App实例(worker进程独立)
+     * Laravel app(Independent in everny worker process)
      * 
      * @var \Illuminate\Foundation\Application
      */
@@ -79,9 +79,10 @@ class Server
 
 		$this->server = new \swoole_http_server($address, $port);
 
-        // $this->server->set([
-        //     'log_file' => '/var/log/swoole.log'
-        // ]);
+         $this->server->set([
+             // 'log_file' => '/var/log/swoole.log'
+             'log_file' => $this->laravel->basePath('storage/logs/swoole.log'),
+         ]);
 
 		return $this;
 	}
@@ -95,6 +96,7 @@ class Server
 	{
 		$this->server->on('workerStart', [$this, 'onWorkerStart']);
 		$this->server->on('request', [$this, 'onRequest']);
+		// $this->server->on('close', [$this, 'onClose']);
 
 		return $this;
 	}
@@ -109,19 +111,32 @@ class Server
 	/**
 	 * On request events callback function
 	 * 
-	 * @return [type] [description]
+	 * @return void
 	 */
 	public function onRequest(SwooleRequest $request, SwooleResponse $response)
 	{
+	    // Get laravel app
         $app = require $this->laravel->basePath('bootstrap/app.php');
 
         $kernel = $app->make(\Illuminate\Contracts\Http\Kernel::class);
 
+        // Handle static files.
+        if ($file = Request::staticFile($request, $app->publicPath())) {
+            return Request::handleStaticFile($response, $file);
+        }
+
+        // Handle the request
         $illuminateResponse = $kernel->handle(
-            Request::toIlluminateRequest($request)
+            $request = Request::toIlluminateRequest($request)
         );
 
+        // Send response
         Response::send($response, $illuminateResponse);
+	}
+
+    public function onClose()
+    {
+
 	}
 
     /**

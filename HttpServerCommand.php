@@ -1,8 +1,9 @@
 <?php
 
 namespace Curia\Swoole;
+use Illuminate\Console\Command;
 
-class SwooleHttpServer extends Command
+class HttpServerCommand extends Command
 {
     /**
      * The name and signature of the console command.
