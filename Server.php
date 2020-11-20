@@ -77,11 +77,13 @@ class Server
 		$address = Arr::get($this->config, 'address');
 		$port = Arr::get($this->config, 'port');
 
-		$this->server = new \swoole_http_server($address, $port);
+		$this->server = new \swoole_http_server($address, $port, SWOOLE_BASE);
 
          $this->server->set([
              // 'log_file' => '/var/log/swoole.log'
              'log_file' => $this->laravel->basePath('storage/logs/swoole.log'),
+//             'worker_num' => 1,
+//             'max_request' => 2,
          ]);
 
 		return $this;
@@ -103,9 +105,9 @@ class Server
 
 	public function onWorkerStart($server, $workerId)
 	{
-		// $this->app = require $this->laravel->basePath('bootstrap/app.php');
+		 $this->app = require $this->laravel->basePath('bootstrap/app.php');
 
-		// $this->kernel = $this->app->make(\Illuminate\Contracts\Http\Kernel::class);
+		 $this->kernel = $this->app->make(\Illuminate\Contracts\Http\Kernel::class);
 	}
 
 	/**
@@ -116,9 +118,11 @@ class Server
 	public function onRequest(SwooleRequest $request, SwooleResponse $response)
 	{
 	    // Get laravel app
-        $app = require $this->laravel->basePath('bootstrap/app.php');
+        // $app = require $this->laravel->basePath('bootstrap/app.php');
+        // $kernel = $app->make(\Illuminate\Contracts\Http\Kernel::class);
 
-        $kernel = $app->make(\Illuminate\Contracts\Http\Kernel::class);
+        $app = $this->app;
+        $kernel = $this->kernel;
 
         // Handle static files.
         if ($file = Request::staticFile($request, $app->publicPath())) {

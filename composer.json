@@ -1,19 +1,19 @@
 {
     "name": "curia/swoole",
-    "description": "Intergrate swoole into laravel",
+    "description": "Intergrate swoole into laravel/lumen",
     "license": "MIT",
     "authors": [
         {
-            "name": "baigali",
-            "email": "baigalikkk@163.com"
+            "name": "Garan",
+            "email": "gali3052@gamil.com"
         }
     ],
     "require": {
-        "php": "^7.0",
-        "illuminate/console": "~5.4",
-        "illuminate/contracts": "~5.4",
-        "illuminate/http": "~5.4",
-        "illuminate/support": "~5.4"
+        "php": "7.*",
+        "illuminate/console": "*",
+        "illuminate/contracts": "*",
+        "illuminate/http": "*",
+        "illuminate/support": "*"
     },
     "autoload": {
         "psr-4": {
