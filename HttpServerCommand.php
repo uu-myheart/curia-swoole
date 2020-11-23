@@ -1,6 +1,7 @@
 <?php
 
 namespace Curia\Swoole;
+
 use Illuminate\Console\Command;
 
 class HttpServerCommand extends Command
@@ -52,7 +53,7 @@ class HttpServerCommand extends Command
 
     protected function start()
     {
-        $this->info('Swoole http server started');
+        $this->info('Prepare to start swoole http server');
 
         $this->laravel->get(Server::class)->start();
     }

@@ -3,7 +3,7 @@
 namespace Curia\Swoole;
 
 use Illuminate\Support\Arr;
-use Illuminate\Foundation\Application;
+use Illuminate\Contracts\Container\Container;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
 use Illuminate\Http\Request as IlluminateRequest;
@@ -16,14 +16,14 @@ class Server
 	/**
      * Laravel app instance(global)
      *
-     * @var \Illuminate\Foundation\Application
+     * @var \Illuminate\Contracts\Container\Container
      */
-    protected $laravel;
+    protected $globalApp;
 
     /**
-     * Laravel app(Independent in everny worker process)
+     * app(Independent in everny worker process)
      * 
-     * @var \Illuminate\Foundation\Application
+     * @var \Illuminate\Contracts\Container\Container
      */
     protected $app;
 
@@ -41,18 +41,33 @@ class Server
 	 */
 	protected $config;
 
+    /**
+     * Laravel or Lumen
+     *
+     * @var string
+     */
+	protected $appType;
+
 	/**
 	 * Constructor
 	 *
 	 * @return void
 	 */
-	public function __construct(Application $laravel)
+	public function __construct(Container $app)
 	{
-		$this->laravel = $laravel;
+        $this->globalApp = $app;
+
+        $this->initialize();
 
 		$this->loadConfig()
-			->createSwooleServer()
+			->setSwooleServer()
 			->registerSwooleEvents();
+	}
+
+	//todo
+    protected function initialize()
+    {
+        \Co::set(['hook_flags'=> SWOOLE_HOOK_ALL]);
 	}
 
 	/**
@@ -62,28 +77,31 @@ class Server
 	 */
 	protected function loadConfig()
 	{
-		$this->config = app('config')->get('swoole');
+		$this->config = $this->globalApp->make('config');
 
 		return $this;
 	}
 
 	/**
-	 * Create swoole http server
+	 * Set swoole http server
 	 * 
 	 * @return $this
 	 */
-	protected function createSwooleServer()
+	protected function setSwooleServer()
 	{
-		$address = Arr::get($this->config, 'address');
-		$port = Arr::get($this->config, 'port');
+	    $this->appType = $this->config->get('swoole.app') ?: 'laravel';
 
-		$this->server = new \swoole_http_server($address, $port, SWOOLE_BASE);
+		$address = $this->config->get('swoole.address') ?: '0.0.0.0';
+		$port = $this->config->get('swoole.port') ?: '9501';
+		$swooleMode = $this->config->get('swoole.process_mode') ?: SWOOLE_BASE;
+		$logFile = $this->config->get('swoole.log_file') ?: 'storage/logs/swoole.log';
+		$workerNum = $this->config->get('swoole.worker_num') ?: swoole_cpu_num()*2;
+
+		$this->server = new \swoole_http_server($address, $port, $swooleMode);
 
          $this->server->set([
-             // 'log_file' => '/var/log/swoole.log'
-             'log_file' => $this->laravel->basePath('storage/logs/swoole.log'),
-//             'worker_num' => 1,
-//             'max_request' => 2,
+             'log_file' => $this->globalApp->basePath($logFile),
+             'worker_num' => $workerNum,
          ]);
 
 		return $this;
@@ -98,16 +116,24 @@ class Server
 	{
 		$this->server->on('workerStart', [$this, 'onWorkerStart']);
 		$this->server->on('request', [$this, 'onRequest']);
-		// $this->server->on('close', [$this, 'onClose']);
 
 		return $this;
 	}
 
+    /**
+     * swoole worker start event
+     *
+     * @param $server
+     * @param $workerId
+     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     */
 	public function onWorkerStart($server, $workerId)
 	{
-		 $this->app = require $this->laravel->basePath('bootstrap/app.php');
+		 $this->app = require $this->globalApp->basePath('bootstrap/app.php');
 
-		 $this->kernel = $this->app->make(\Illuminate\Contracts\Http\Kernel::class);
+		 if ($this->appType == 'laravel') {
+             $this->kernel = $this->app->make(\Illuminate\Contracts\Http\Kernel::class);
+         }
 	}
 
 	/**
@@ -117,22 +143,20 @@ class Server
 	 */
 	public function onRequest(SwooleRequest $request, SwooleResponse $response)
 	{
-	    // Get laravel app
-        // $app = require $this->laravel->basePath('bootstrap/app.php');
-        // $kernel = $app->make(\Illuminate\Contracts\Http\Kernel::class);
-
-        $app = $this->app;
-        $kernel = $this->kernel;
-
         // Handle static files.
-        if ($file = Request::staticFile($request, $app->publicPath())) {
+        if ($file = Request::staticFile($request, $this->app->basePath('public'))) {
             return Request::handleStaticFile($response, $file);
         }
 
+        $illuminateRequest = Request::toIlluminateRequest($request);
+        Context::set('request', $illuminateRequest);
+
         // Handle the request
-        $illuminateResponse = $kernel->handle(
-            $request = Request::toIlluminateRequest($request)
-        );
+	    if ($this->appType == 'laravel') {
+            $illuminateResponse = $this->kernel->handle($illuminateRequest);
+        } else {
+            $illuminateResponse = $this->app->dispatch($illuminateRequest);
+        }
 
         // Send response
         Response::send($response, $illuminateResponse);
