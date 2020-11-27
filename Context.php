@@ -9,7 +9,7 @@ class Context
     //todo
     public static function context()
     {
-        return Coroutine::getContext(Coroutine::getCid());
+        return Coroutine::getContext();
     }
 
     //todo
@@ -32,5 +32,11 @@ class Context
     public static function set($key, $value)
     {
         self::context()[$key] = $value;
+    }
+
+    //todo
+    public static function unset($key, $value)
+    {
+        unset(self::context()[$key]);
     }
 }

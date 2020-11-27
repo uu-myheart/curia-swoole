@@ -23,14 +23,40 @@ class LumenApp extends Application
     // todo
     public function make($abstract, array $parameters = [])
     {
-        if (in_array($abstract, $this->contextualObject)) {
-            return Context::get($abstract);
-            return Context::has($abstract)
-                ? Context::get($abstract)
-                : $this->resolveContextualObject($abstract, $parameters);
+        if ($this->inCotoutine()) {
+            switch ($abstract) {
+                case 'redis':
+                    return $this->getRedisFromPool();
+            }
+
+            if (in_array($abstract, $this->contextualObject)) {
+                return Context::get($abstract);
+            }
         }
 
         return parent::make($abstract, $parameters);
+    }
+
+    /**
+     * 是否在协程环境中
+     *
+     * @return bool
+     */
+    public static function inCotoutine()
+    {
+        return \Co::getCid() > 0;
+    }
+
+    //todo
+    public function getRedisFromPool()
+    {
+        $pool = $this->make('redis.pool');
+        $redis = $pool->get();
+        dump(get_class($redis));
+        defer(function () use ($pool, $redis) {
+            $pool->put($redis);
+        });
+        return $redis;
     }
 
     //todo

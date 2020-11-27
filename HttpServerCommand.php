@@ -55,6 +55,10 @@ class HttpServerCommand extends Command
     {
         $this->info('Prepare to start swoole http server');
 
-        $this->laravel->get(Server::class)->start();
+        $appType = $this->laravel instanceof \Laravel\Lumen\Application
+            ? 'lumen'
+            : 'laravel';
+
+        $this->laravel->get(Server::class)->setAppType($appType)->start();
     }
 }

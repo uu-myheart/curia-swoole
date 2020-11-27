@@ -3,6 +3,8 @@
 namespace Curia\Swoole;
 
 use Illuminate\Support\Arr;
+use Swoole\Database\RedisPool;
+use Swoole\Database\RedisConfig;
 use Illuminate\Contracts\Container\Container;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
@@ -56,18 +58,60 @@ class Server
 	public function __construct(Container $app)
 	{
         $this->globalApp = $app;
-
+        $this->loadConfig();
         $this->initialize();
+        $this->setSwooleServer()->registerSwooleEvents();
+	}
 
-		$this->loadConfig()
-			->setSwooleServer()
-			->registerSwooleEvents();
+    /**
+     * Set app tpye
+     *
+     * @param string $type
+     */
+    public function setAppType(string $type)
+    {
+        $this->appType = $type;
+
+        return $this;
+	}
+
+    /**
+     * initizlize
+     *
+     * @return void
+     */
+    protected function initialize()
+    {
+        \Co::set(['hook_flags' => SWOOLE_HOOK_ALL]);
 	}
 
 	//todo
-    protected function initialize()
+    protected function initRedisPool()
     {
-        \Co::set(['hook_flags'=> SWOOLE_HOOK_ALL]);
+        // $config = $this->config->get('swoole.default');
+        // Co\run(function () {
+        //     $pool = new RedisPool((new RedisConfig)
+        //         ->withHost($config['host'])
+        //         ->withPort($config['port'])
+        //         ->withAuth($config['password'])
+        //         ->withDbIndex($config['database'])
+        //         ->withTimeout(1)
+        //     );
+        //
+        //     $this->app->instance('redis.pool', $pool);
+        // });
+
+        $this->app->singleton('redis.pool', function ($app) {
+            $config = $this->app['config']->get('database.redis.default');
+
+            return new RedisPool((new RedisConfig)
+                ->withHost((string) $config['host'])
+                ->withPort((int) $config['port'])
+                ->withAuth((string) $config['password'])
+                ->withDbIndex((int) $config['database'])
+                ->withTimeout(1)
+            );
+        });
 	}
 
 	/**
@@ -97,7 +141,7 @@ class Server
 		$logFile = $this->config->get('swoole.log_file') ?: 'storage/logs/swoole.log';
 		$workerNum = $this->config->get('swoole.worker_num') ?: swoole_cpu_num()*2;
 
-		$this->server = new \swoole_http_server($address, $port, $swooleMode);
+		$this->server = new \Swoole\Http\Server($address, $port, $swooleMode);
 
          $this->server->set([
              'log_file' => $this->globalApp->basePath($logFile),
@@ -134,6 +178,10 @@ class Server
 		 if ($this->appType == 'laravel') {
              $this->kernel = $this->app->make(\Illuminate\Contracts\Http\Kernel::class);
          }
+
+        if ($this->config->get('swoole.enable_redis_pool')) {
+            $this->initRedisPool();
+        }
 	}
 
 	/**
@@ -144,9 +192,9 @@ class Server
 	public function onRequest(SwooleRequest $request, SwooleResponse $response)
 	{
         // Handle static files.
-        if ($file = Request::staticFile($request, $this->app->basePath('public'))) {
-            return Request::handleStaticFile($response, $file);
-        }
+        // if ($file = Request::staticFile($request, $this->app->basePath('public'))) {
+        //     return Request::handleStaticFile($response, $file);
+        // }
 
         $illuminateRequest = Request::toIlluminateRequest($request);
         Context::set('request', $illuminateRequest);
