@@ -42,6 +42,11 @@ class HttpServerCommand extends Command
         $this->start();
     }
 
+    /**
+     * Check if swoole extension is loaded
+     *
+     * @return void
+     */
     protected function checkEnvironment()
     {
         if (! extension_loaded('swoole')) {
@@ -51,6 +56,11 @@ class HttpServerCommand extends Command
         }
     }
 
+    /**
+     * Start swoole http server
+     *
+     * @return void
+     */
     protected function start()
     {
         $this->info('Prepare to start swoole http server');

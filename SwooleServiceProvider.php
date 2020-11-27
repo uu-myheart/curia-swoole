@@ -2,9 +2,9 @@
 
 namespace Curia\Swoole;
 
+use Curia\Swoole\Pool\IlluminateRedisPool;
 use Illuminate\Support\ServiceProvider;
-use Curia\Pool\RedisPool;
-use Swoole\Database\RedisConfig;
+use Curia\Swoole\Pool\RedisPool;
 
 class SwooleServiceProvider extends ServiceProvider
 {
@@ -13,31 +13,35 @@ class SwooleServiceProvider extends ServiceProvider
      *
      * @return void
      */
-	public function register()
-	{
-		$this->app->singleton(Server::class);
+    public function register()
+    {
+        $this->app->singleton(Server::class);
 
-		$this->registerCommand();
+        $this->registerCommand();
 
-		$this->registerRedisPool();
-	}
+        $this->registerRedisPool();
+    }
 
     /**
      * Register swoole command.
      *
      * @return void
      */
-	public function registerCommand()
-	{
-		$this->commands([HttpServerCommand::class]);
-	}
+    public function registerCommand()
+    {
+        $this->commands([HttpServerCommand::class]);
+    }
 
-	//todo
+    /**
+     * Register redis pool to container
+     *
+     * @return void
+     */
     public function registerRedisPool()
     {
         $this->app->singleton('redis.pool', function ($app) {
-            $config = $this->app['config']->get('database.redis.default');
-            return new RedisPool($config);
+            $config = $app->make('config')->get('database.redis');
+            return new IlluminateRedisPool($config);
         });
-	}
+    }
 }

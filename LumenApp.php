@@ -17,10 +17,21 @@ class LumenApp extends Application
      */
     protected $contextualObject = [
         'request',
+        'session',
         'session.store',
+        'cache',
+        'cache.store',
+        'cache.psr6',
+        'memcached.connector',
     ];
 
-    // todo
+    /**
+     * Get an object from container or context
+     *
+     * @param string $abstract
+     * @param array $parameters
+     * @return mixed
+     */
     public function make($abstract, array $parameters = [])
     {
         if ($this->inCotoutine()) {
@@ -29,7 +40,7 @@ class LumenApp extends Application
                     return $this->getRedisFromPool();
             }
 
-            if (in_array($abstract, $this->contextualObject)) {
+            if (in_array($abstract, $this->contextualObject) && Context::has($abstract)) {
                 return Context::get($abstract);
             }
         }
@@ -47,31 +58,25 @@ class LumenApp extends Application
         return \Co::getCid() > 0;
     }
 
-    //todo
+    /**
+     * Get redis from pool
+     *
+     * @return mixed
+     */
     public function getRedisFromPool()
     {
         $pool = $this->make('redis.pool');
         $redis = $pool->get();
-        dump(get_class($redis));
         defer(function () use ($pool, $redis) {
             $pool->put($redis);
         });
         return $redis;
     }
 
-    //todo
-    public function resolveContextualObject($abstract, $parameters)
-    {
-        // unset($this->instances[$abstract]);
-        // $object = parent::make($abstract, $parameters);
-        // Context::set($abstract, $object);
-        // return $object;
-    }
-
     /**
      * Dispatch the incoming request.
      *
-     * @param  SymfonyRequest|null  $request
+     * @param SymfonyRequest|null $request
      * @return Response
      */
     public function dispatch($request = null)
@@ -84,8 +89,8 @@ class LumenApp extends Application
             return $this->sendThroughPipeline($this->middleware, function ($request) use ($method, $pathInfo) {
                 Context::set('request', $request);
 
-                if (isset($this->router->getRoutes()[$method.$pathInfo])) {
-                    return $this->handleFoundRoute([true, $this->router->getRoutes()[$method.$pathInfo]['action'], []]);
+                if (isset($this->router->getRoutes()[$method . $pathInfo])) {
+                    return $this->handleFoundRoute([true, $this->router->getRoutes()[$method . $pathInfo]['action'], []]);
                 }
 
                 return $this->handleDispatcherResponse(

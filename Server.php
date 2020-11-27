@@ -15,7 +15,7 @@ use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class Server
 {
-	/**
+    /**
      * Laravel app instance(global)
      *
      * @var \Illuminate\Contracts\Container\Container
@@ -24,44 +24,44 @@ class Server
 
     /**
      * app(Independent in everny worker process)
-     * 
+     *
      * @var \Illuminate\Contracts\Container\Container
      */
     protected $app;
 
-	/**
-	 * Swoole http server instance
-	 *
-	 * @var \Swoole\Http\Server
-	 */
-	protected $server;
+    /**
+     * Swoole http server instance
+     *
+     * @var \Swoole\Http\Server
+     */
+    protected $server;
 
-	/**
-	 * Swoole configurations
-	 * 
-	 * @var array
-	 */
-	protected $config;
+    /**
+     * Swoole configurations
+     *
+     * @var array
+     */
+    protected $config;
 
     /**
      * Laravel or Lumen
      *
      * @var string
      */
-	protected $appType;
+    protected $appType;
 
-	/**
-	 * Constructor
-	 *
-	 * @return void
-	 */
-	public function __construct(Container $app)
-	{
+    /**
+     * Constructor
+     *
+     * @return void
+     */
+    public function __construct(Container $app)
+    {
         $this->globalApp = $app;
         $this->loadConfig();
         $this->initialize();
         $this->setSwooleServer()->registerSwooleEvents();
-	}
+    }
 
     /**
      * Set app tpye
@@ -73,7 +73,7 @@ class Server
         $this->appType = $type;
 
         return $this;
-	}
+    }
 
     /**
      * initizlize
@@ -83,86 +83,58 @@ class Server
     protected function initialize()
     {
         \Co::set(['hook_flags' => SWOOLE_HOOK_ALL]);
-	}
+    }
 
-	//todo
-    protected function initRedisPool()
+
+    /**
+     * Load configurations
+     *
+     * @return $this
+     */
+    protected function loadConfig()
     {
-        // $config = $this->config->get('swoole.default');
-        // Co\run(function () {
-        //     $pool = new RedisPool((new RedisConfig)
-        //         ->withHost($config['host'])
-        //         ->withPort($config['port'])
-        //         ->withAuth($config['password'])
-        //         ->withDbIndex($config['database'])
-        //         ->withTimeout(1)
-        //     );
-        //
-        //     $this->app->instance('redis.pool', $pool);
-        // });
+        $this->config = $this->globalApp->make('config');
 
-        $this->app->singleton('redis.pool', function ($app) {
-            $config = $this->app['config']->get('database.redis.default');
+        return $this;
+    }
 
-            return new RedisPool((new RedisConfig)
-                ->withHost((string) $config['host'])
-                ->withPort((int) $config['port'])
-                ->withAuth((string) $config['password'])
-                ->withDbIndex((int) $config['database'])
-                ->withTimeout(1)
-            );
-        });
-	}
+    /**
+     * Set swoole http server
+     *
+     * @return $this
+     */
+    protected function setSwooleServer()
+    {
+        $this->appType = $this->config->get('swoole.app') ?: 'laravel';
 
-	/**
-	 * Load configurations
-	 * 
-	 * @return $this
-	 */
-	protected function loadConfig()
-	{
-		$this->config = $this->globalApp->make('config');
+        $address = $this->config->get('swoole.address') ?: '0.0.0.0';
+        $port = $this->config->get('swoole.port') ?: '9501';
+        $swooleMode = $this->config->get('swoole.process_mode') ?: SWOOLE_BASE;
+        $logFile = $this->config->get('swoole.log_file') ?: 'storage/logs/swoole.log';
+        $workerNum = $this->config->get('swoole.worker_num') ?: swoole_cpu_num() * 2;
 
-		return $this;
-	}
+        $this->server = new \Swoole\Http\Server($address, $port, $swooleMode);
 
-	/**
-	 * Set swoole http server
-	 * 
-	 * @return $this
-	 */
-	protected function setSwooleServer()
-	{
-	    $this->appType = $this->config->get('swoole.app') ?: 'laravel';
+        $this->server->set([
+            'log_file' => $this->globalApp->basePath($logFile),
+            'worker_num' => $workerNum,
+        ]);
 
-		$address = $this->config->get('swoole.address') ?: '0.0.0.0';
-		$port = $this->config->get('swoole.port') ?: '9501';
-		$swooleMode = $this->config->get('swoole.process_mode') ?: SWOOLE_BASE;
-		$logFile = $this->config->get('swoole.log_file') ?: 'storage/logs/swoole.log';
-		$workerNum = $this->config->get('swoole.worker_num') ?: swoole_cpu_num()*2;
+        return $this;
+    }
 
-		$this->server = new \Swoole\Http\Server($address, $port, $swooleMode);
+    /**
+     * Register swoole events
+     *
+     * @return $this;
+     */
+    protected function registerSwooleEvents()
+    {
+        $this->server->on('workerStart', [$this, 'onWorkerStart']);
+        $this->server->on('request', [$this, 'onRequest']);
 
-         $this->server->set([
-             'log_file' => $this->globalApp->basePath($logFile),
-             'worker_num' => $workerNum,
-         ]);
-
-		return $this;
-	}
-
-	/**
-	 * [registerEvents description]
-	 * 
-	 * @return $this;
-	 */
-	protected function registerSwooleEvents()
-	{
-		$this->server->on('workerStart', [$this, 'onWorkerStart']);
-		$this->server->on('request', [$this, 'onRequest']);
-
-		return $this;
-	}
+        return $this;
+    }
 
     /**
      * swoole worker start event
@@ -171,36 +143,31 @@ class Server
      * @param $workerId
      * @throws \Illuminate\Contracts\Container\BindingResolutionException
      */
-	public function onWorkerStart($server, $workerId)
-	{
-		 $this->app = require $this->globalApp->basePath('bootstrap/app.php');
+    public function onWorkerStart($server, $workerId)
+    {
+        $this->app = require $this->globalApp->basePath('bootstrap/app.php');
 
-		 if ($this->appType == 'laravel') {
-             $this->kernel = $this->app->make(\Illuminate\Contracts\Http\Kernel::class);
-         }
-
-        if ($this->config->get('swoole.enable_redis_pool')) {
-            $this->initRedisPool();
+        if ($this->appType == 'laravel') {
+            $this->kernel = $this->app->make(\Illuminate\Contracts\Http\Kernel::class);
         }
-	}
+    }
 
-	/**
-	 * On request events callback function
-	 * 
-	 * @return void
-	 */
-	public function onRequest(SwooleRequest $request, SwooleResponse $response)
-	{
-        // Handle static files.
-        // if ($file = Request::staticFile($request, $this->app->basePath('public'))) {
-        //     return Request::handleStaticFile($response, $file);
-        // }
+    /**
+     * On request events callback function
+     *
+     * @return void
+     */
+    public function onRequest(SwooleRequest $request, SwooleResponse $response)
+    {
+        // drop stable instance on a request
+        $this->dropStaleOnRequest();
 
+        // Transform request
         $illuminateRequest = Request::toIlluminateRequest($request);
         Context::set('request', $illuminateRequest);
 
-        // Handle the request
-	    if ($this->appType == 'laravel') {
+        // Handle request
+        if ($this->appType == 'laravel') {
             $illuminateResponse = $this->kernel->handle($illuminateRequest);
         } else {
             $illuminateResponse = $this->app->dispatch($illuminateRequest);
@@ -208,20 +175,37 @@ class Server
 
         // Send response
         Response::send($response, $illuminateResponse);
-	}
+    }
 
-    public function onClose()
+    /**
+     * Drop stale instance, resolve a new one, and save it to context
+     *
+     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     */
+    protected function dropStaleOnRequest()
     {
+        $this->app->forgetInstance('cache');
+        $this->app->forgetInstance('cache.store');
+        $this->app->forgetInstance('cache.psr6');
+        $this->app->forgetInstance('memcached.connector');
+        $this->app->forgetInstance('session.store');
+        $this->app->forgetInstance('session');
 
-	}
+        Context::set('cache', $this->app->make('cache'));
+        Context::set('cache.store', $this->app->make('cache.store'));
+        Context::set('cache.psr6', $this->app->make('cache.psr6'));
+        Context::set('memcached.connector', $this->app->make('memcached.connector'));
+        Context::set('session', $this->app->make('session.store'));
+        Context::set('session', $this->app->make('session'));
+    }
 
     /**
      * Start swoole http server
-     * 
+     *
      * @return void
      */
-	public function start()
-	{
-		$this->server->start();
-	}
+    public function start()
+    {
+        $this->server->start();
+    }
 }

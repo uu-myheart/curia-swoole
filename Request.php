@@ -19,7 +19,7 @@ class Request
      */
     public static function staticFile(SwooleRequest $request, $publicPath)
     {
-        $file = $publicPath.$request->server['request_uri'];
+        $file = $publicPath . $request->server['request_uri'];
 
         return is_file($file) ? $file : false;
     }
@@ -52,14 +52,14 @@ class Request
      *
      * @return \Illuminate\Http\Request IlluminateRequest
      */
-	public static function toIlluminateRequest(SwooleRequest $request)
-	{
+    public static function toIlluminateRequest(SwooleRequest $request)
+    {
         return IlluminateRequest::createFromBase(
             new SymfonyRequest(...static::toSymfonyParameters($request))
         );
-	}
+    }
 
-	/**
+    /**
      * Transforms request parameters.
      *
      * @param \Swoole\Http\Request $request
