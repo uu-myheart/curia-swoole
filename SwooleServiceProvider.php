@@ -27,7 +27,7 @@ class SwooleServiceProvider extends ServiceProvider
      *
      * @return void
      */
-    public function registerCommand()
+    protected function registerCommand()
     {
         $this->commands([HttpServerCommand::class]);
     }
@@ -37,7 +37,7 @@ class SwooleServiceProvider extends ServiceProvider
      *
      * @return void
      */
-    public function registerRedisPool()
+    protected function registerRedisPool()
     {
         $this->app->singleton('redis.pool', function ($app) {
             $config = $app->make('config')->get('database.redis');

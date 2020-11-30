@@ -137,6 +137,26 @@ class Server
     }
 
     /**
+     * Is laravel
+     *
+     * @return bool
+     */
+    public static function isLaravel()
+    {
+        return app() instanceof \Illuminate\Foundation\Application;
+    }
+
+    /**
+     * Is lumen
+     *
+     * @return bool
+     */
+    public static function isLumen()
+    {
+        return ! static::isLaravel();
+    }
+
+    /**
      * swoole worker start event
      *
      * @param $server
@@ -160,16 +180,16 @@ class Server
     public function onRequest(SwooleRequest $request, SwooleResponse $response)
     {
         // drop stable instance on a request
-        $this->dropStaleOnRequest();
-
-        // Transform request
-        $illuminateRequest = Request::toIlluminateRequest($request);
-        Context::set('request', $illuminateRequest);
+        $this->reset();
 
         // Handle request
-        if ($this->appType == 'laravel') {
+        if (static::isLaravel()) {
+            $illuminateRequest = Request::toIlluminateRequest($request);
+            static::setRequestInCoroutine($illuminateRequest);
             $illuminateResponse = $this->kernel->handle($illuminateRequest);
         } else {
+            $illuminateRequest = Request::toIlluminateRequest($request, $isLumen = true);
+            static::setRequestInCoroutine($illuminateRequest);
             $illuminateResponse = $this->app->dispatch($illuminateRequest);
         }
 
@@ -178,25 +198,31 @@ class Server
     }
 
     /**
+     * Set request instance in current coroutine.
+     *
+     * @param IlluminateRequest $request
+     */
+    public static function setRequestInCoroutine(\Illuminate\Http\Request $request)
+    {
+        Context::set('request', $request);
+        Context::set('Illuminate\Http\Request', $request);
+    }
+
+    /**
      * Drop stale instance, resolve a new one, and save it to context
      *
      * @throws \Illuminate\Contracts\Container\BindingResolutionException
      */
-    protected function dropStaleOnRequest()
+    protected function reset()
     {
-        $this->app->forgetInstance('cache');
-        $this->app->forgetInstance('cache.store');
-        $this->app->forgetInstance('cache.psr6');
-        $this->app->forgetInstance('memcached.connector');
-        $this->app->forgetInstance('session.store');
-        $this->app->forgetInstance('session');
+        foreach (LumenApp::$contextualObject as $item) {
+            $this->app->forgetInstance($item);
+        }
 
-        Context::set('cache', $this->app->make('cache'));
-        Context::set('cache.store', $this->app->make('cache.store'));
-        Context::set('cache.psr6', $this->app->make('cache.psr6'));
-        Context::set('memcached.connector', $this->app->make('memcached.connector'));
-        Context::set('session', $this->app->make('session.store'));
-        Context::set('session', $this->app->make('session'));
+        foreach (LumenApp::$contextualObject as $item) {
+            //todo
+            Context::set($item, $this->app->make($item));
+        }
     }
 
     /**

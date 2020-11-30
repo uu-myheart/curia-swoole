@@ -2,6 +2,7 @@
 
 namespace Curia\Swoole;
 
+use Laravel\Lumen\Http\Request as LumenRequest;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
 use Illuminate\Http\Request as IlluminateRequest;
@@ -52,8 +53,14 @@ class Request
      *
      * @return \Illuminate\Http\Request IlluminateRequest
      */
-    public static function toIlluminateRequest(SwooleRequest $request)
+    public static function toIlluminateRequest(SwooleRequest $request, $isLumen = false)
     {
+        if ($isLumen) {
+            return LumenRequest::createFromBase(
+                new SymfonyRequest(...static::toSymfonyParameters($request))
+            );
+        }
+
         return IlluminateRequest::createFromBase(
             new SymfonyRequest(...static::toSymfonyParameters($request))
         );
