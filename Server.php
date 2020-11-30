@@ -2,16 +2,12 @@
 
 namespace Curia\Swoole;
 
-use Illuminate\Support\Arr;
 use Swoole\Database\RedisPool;
 use Swoole\Database\RedisConfig;
 use Illuminate\Contracts\Container\Container;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
 use Illuminate\Http\Request as IlluminateRequest;
-use Symfony\Component\HttpFoundation\ParameterBag;
-use Symfony\Component\HttpFoundation\StreamedResponse;
-use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class Server
 {
